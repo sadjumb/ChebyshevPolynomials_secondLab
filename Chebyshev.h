@@ -23,25 +23,6 @@ public:
     {
       tau.push_back(2.0 / (lambdaMin + lambdaMax + (lambdaMax - lambdaMin) * cos(M_PI * (1.0 + 2.0 * i) / (2 * K))));
     }
-
-    double posX = a;
-    double posY = c;
-    n += 1;
-    m += 1;
-    for (size_t i = 0; i < n; ++i, posX += h)
-    {
-      r.push_back(VEC_PAIR{});
-      f.push_back(VEC_PAIR{});
-      numericalSol.push_back(VEC_PAIR{});
-      for (size_t j = 0; j < m; ++j, posY += k)
-      {
-        numericalSol[i].push_back(PAIR_PAIR{ std::pair<double, double>{posX, posY}, 0.0 });
-        f[i].push_back(PAIR_PAIR{ std::pair<double, double>{posX, posY}, 0.0 });
-        r[i].push_back(PAIR_PAIR{ std::pair<double, double>{posX, posY}, 0.0 });
-      }
-      posY = c;
-    }
-
   }
 
   virtual ~Chebyshev() = default;
@@ -60,19 +41,37 @@ public:
     }
   }
 
-protected:
-  double a = -1;
-  double b = 1;
-  double h; // шаг по x \in [a, b] = (b-a)/n, N - разбиение сетки
-  double c = -1;
-  double d = 1;
-  double k; // шаг по y \in [c, d] = (d-c)/m, M - разбиение сетки
-  int N;
-  int M;
-  std::vector<double> tau;
-  std::vector<VEC_PAIR> numericalSol; // ~V
-  std::vector<VEC_PAIR> f; // 
-  std::vector<VEC_PAIR> r;
+
+  double inf_discrepancy()
+  {
+    double tmp = 0;
+    for (size_t i = 0; i < N; ++i)
+    {
+      for (size_t j = 0; j < M; ++j)
+      {
+        if (tmp < abs(r[i][j].second))
+          tmp = r[i][j].second;
+      }
+    }
+    return tmp;
+  }
+
+  void run()
+  {
+    for (size_t i = 0; i < 10000; ++i)
+    {
+      discrepancy();
+      for (size_t k = 0; k < N - 1; ++k)
+      {
+        for (size_t j = 0; j < M - 1; ++j)
+        {
+          numericalSol[k][j].second += tau[i % tau.size()] * r[k][j].second;
+        }
+      }
+    }
+    //printf("\n\t |||||||||||||||||||||||||||||| \n\t\t Numerical Solution \n");
+    //printV(numericalSol);
+  }
 
 protected:
   double virtual foo(const std::pair<double, double>&) = 0;
@@ -93,35 +92,33 @@ protected:
       printf("\n");
     }
     printf("\n");
-    for (int i = M - 1; i >= 0; --i)
-    {
-      for (int j = 0; j < N; ++j)
-      {
-        std::cout << '(' << matr[j][i].first.first << ", " << matr[j][i].first.second << ") ";
-      }
-      printf("\n");
-    }
+    //for (int i = M - 1; i >= 0; --i)
+    //{
+    //  for (int j = 0; j < N; ++j)
+    //  {
+    //    std::cout << '(' << matr[j][i].first.first << ", " << matr[j][i].first.second << ") ";
+    //  }
+    //  printf("\n");
+    //}
     printf("\n");
   }
   void initCondition()
   {
-
-  }
-};
-
-class Test_function : public Chebyshev
-{
-public:
-  Test_function(int n, int m, int K) : Chebyshev(n, m, K)
-  {
-    trueSol = numericalSol;
-    for (size_t i = 0; i < M; ++i)
+    double posX = a;
+    double posY = c;
+    for (size_t i = 0; i < N; ++i, posX += h)
     {
-      for (size_t j = 0; j < N; ++j)
+      r.push_back(VEC_PAIR{});
+      f.push_back(VEC_PAIR{});
+      numericalSol.push_back(VEC_PAIR{});
+      for (size_t j = 0; j < M; ++j, posY += k)
       {
-        trueSol[j][i].second = true_sol(numericalSol[j][i].first);
-        f[j][i].second = foo(f[j][i].first);
+        numericalSol[i].push_back(PAIR_PAIR{ std::pair<double, double>{posX, posY}, 0.0 });
+        f[i].push_back(PAIR_PAIR{ std::pair<double, double>{posX, posY}, 0.0 });
+        f[i][j].second = foo(f[i][j].first);
+        r[i].push_back(PAIR_PAIR{ std::pair<double, double>{posX, posY}, 0.0 });
       }
+      posY = c;
     }
 
     for (size_t i = 0; i < N; ++i)
@@ -129,16 +126,49 @@ public:
       numericalSol[i][0].second = mu3(numericalSol[i][0].first.first);
       numericalSol[i][M - 1].second = mu4(numericalSol[i][M - 1].first.first);
     }
-
     for (size_t i = 0; i < M; ++i)
     {
       numericalSol[0][i].second = mu1(numericalSol[0][i].first.second);
-      numericalSol[N - 1][i].second = mu2(numericalSol[N-1][i].first.second);
+      numericalSol[N - 1][i].second = mu2(numericalSol[N - 1][i].first.second);
     }
-    printV(numericalSol);
-    printf("\n\t |||||||||||||||||||||||||||||| \n\t\t True Solution \n");
-    printV(trueSol);
+  }
 
+protected:
+  double a = -1;
+  double b = 1;
+  double h; // шаг по x \in [a, b] = (b-a)/n, N - разбиение сетки
+  double c = -1;
+  double d = 1;
+  double k; // шаг по y \in [c, d] = (d-c)/m, M - разбиение сетки
+  int N;
+  int M;
+  std::vector<double> tau;
+  std::vector<VEC_PAIR> numericalSol; // ~V
+  std::vector<VEC_PAIR> f; // 
+  std::vector<VEC_PAIR> r;
+};
+
+class Test_function : public Chebyshev
+{
+public:
+  Test_function(int n, int m, int K) : Chebyshev(n, m, K)
+  {
+    initCondition();
+    trueSol = numericalSol;
+    for (size_t i = 0; i < M; ++i)
+    {
+      for (size_t j = 0; j < N; ++j)
+      {
+        trueSol[j][i].second = true_sol(numericalSol[j][i].first);
+      }
+    }
+
+    //discrepancy();
+    //printV(numericalSol);
+    //printf("\n\t |||||||||||||||||||||||||||||| \n\t\t True Solution \n");
+    //printV(trueSol);
+    //printf("\n\t |||||||||||||||||||||||||||||| \n\t\t Discrepancy (r) \n");
+    //printV(r);
   }
 
   double true_sol(const double& x, const double& y)
